@@ -123,15 +123,15 @@ function MainApp() {
                 <Sparkles size={14} /> Full 4-Module IELTS Preparation Platform
               </div>
 
-              {/* Bold 72px Display Title */}
+              {/* Display Title */}
               <h1 className="display-title" style={{ marginBottom: '24px' }}>
-                Master IELTS with <br />
+                Pass IELTS with <br />
                 <span style={{
                   background: 'linear-gradient(135deg, #6C63FF 0%, #00F0FF 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent'
                 }}>
-                  3D Precision & AI
+                  AI Scoring & CD-Simulation
                 </span>
               </h1>
 
@@ -142,7 +142,7 @@ function MainApp() {
                 marginBottom: '36px',
                 maxWidth: '520px'
               }}>
-                Simulate official Listening, Reading split-screen, Writing with Gemini AI evaluation, and Speaking voice recording in a clean glass environment.
+                Practice Listening, Reading split-screen, Writing with Gemini AI evaluation, and Speaking voice analysis in official Computer-Delivered format.
               </p>
 
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
