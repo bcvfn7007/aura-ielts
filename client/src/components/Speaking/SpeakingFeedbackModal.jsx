@@ -123,6 +123,47 @@ export default function SpeakingFeedbackModal({ result, onRetry, onCloseCatalog 
           })}
         </div>
 
+        {/* Accent & Pronunciation Intelligibility Card */}
+        {aiEvaluation.accent_analysis && band_score > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.08) 0%, rgba(108, 99, 255, 0.08) 100%)',
+            border: '1px solid rgba(0, 240, 255, 0.3)',
+            padding: '24px',
+            borderRadius: '16px',
+            marginBottom: '24px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '1.4rem' }}>🗣️</span>
+                <div>
+                  <h4 style={{ color: '#FFF', fontSize: '1.1rem', fontWeight: 800 }}>Accent & Phonetic Intelligibility</h4>
+                  <span style={{ fontSize: '0.8rem', color: '#00F0FF' }}>{aiEvaluation.accent_analysis.accent_type || 'Clear Accent'}</span>
+                </div>
+              </div>
+
+              {/* Clarity Percentage Meter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.4)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Speech Clarity:</span>
+                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', fontWeight: 800, color: '#00F0FF' }}>
+                  {aiEvaluation.accent_analysis.clarity_percentage || 85}%
+                </span>
+              </div>
+            </div>
+
+            {/* Phoneme & Accent Tips */}
+            {aiEvaluation.accent_analysis.phoneme_tips && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#FFF' }}>🎯 Accent Refinement Recommendations:</span>
+                {aiEvaluation.accent_analysis.phoneme_tips.map((tip, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.86rem', color: '#E0DEFA' }}>
+                    <span style={{ color: '#00F0FF', fontWeight: 700 }}>•</span> {tip}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Overall Summary & Recommendations */}
         <div style={{ background: 'rgba(255, 184, 0, 0.08)', border: '1px solid rgba(255, 184, 0, 0.25)', padding: '24px', borderRadius: '16px', marginBottom: '32px' }}>
           <h4 style={{ color: '#FFF', fontSize: '1.1rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
