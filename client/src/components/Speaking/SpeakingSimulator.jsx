@@ -216,9 +216,26 @@ export default function SpeakingSimulator({ testId, onExit }) {
       <main style={{ maxWidth: '1400px', margin: '24px auto', padding: '0 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '28px' }}>
         {/* Left: Prompts */}
         <div className="glass-card" style={{ padding: '32px', maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}>
-          <h4 style={{ fontSize: '1.2rem', color: '#FFB800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Mic size={20} /> Official Speaking Prompts
-          </h4>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <h4 style={{ fontSize: '1.2rem', color: '#FFB800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Mic size={20} /> Official Speaking Prompts
+            </h4>
+            <button
+              onClick={() => {
+                if (!('speechSynthesis' in window)) return alert('Text-to-speech not supported in this browser.');
+                window.speechSynthesis.cancel();
+                const textToSpeak = testData?.passage_text || 'Welcome to the IELTS Speaking exam.';
+                const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.92;
+                window.speechSynthesis.speak(utterance);
+              }}
+              className="btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '6px 12px', background: 'rgba(255, 184, 0, 0.15)', borderColor: 'rgba(255, 184, 0, 0.4)', color: '#FFB800' }}
+            >
+              🔊 AI Examiner: Speak Questions Aloud
+            </button>
+          </div>
           <div style={{ fontSize: '0.96rem', lineHeight: 1.8, color: '#E0DEFA', whiteSpace: 'pre-line' }}>
             {testData.passage_text}
           </div>

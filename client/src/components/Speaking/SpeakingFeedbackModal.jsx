@@ -64,6 +64,22 @@ export default function SpeakingFeedbackModal({ result, onRetry, onCloseCatalog 
           <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#FFF' }}>
             Speaking Evaluation Report
           </h2>
+
+          <button
+            onClick={() => {
+              if (!('speechSynthesis' in window)) return;
+              window.speechSynthesis.cancel();
+              const textToSpeak = `Your overall Speaking score is Band ${band_score}. ${aiEvaluation.overall_feedback || ''}`;
+              const utterance = new SpeechSynthesisUtterance(textToSpeak);
+              utterance.lang = 'en-US';
+              utterance.rate = 0.95;
+              window.speechSynthesis.speak(utterance);
+            }}
+            className="btn-secondary"
+            style={{ marginTop: '12px', fontSize: '0.85rem', padding: '6px 16px', background: 'rgba(0, 240, 255, 0.15)', borderColor: 'rgba(0, 240, 255, 0.4)', color: '#00F0FF' }}
+          >
+            🔊 AI Examiner: Read Feedback Out Loud
+          </button>
         </div>
 
         {/* 4 Speaking Criteria */}
