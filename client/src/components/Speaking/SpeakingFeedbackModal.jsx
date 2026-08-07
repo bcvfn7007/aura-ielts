@@ -40,29 +40,29 @@ export default function SpeakingFeedbackModal({ result, onRetry, onCloseCatalog 
       }}>
         {/* Header Score Badge */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <span className="glass-pill" style={{ marginBottom: '12px', borderColor: 'rgba(255, 184, 0, 0.4)', color: '#FFB800' }}>
-            <Mic size={14} /> AI Speaking Performance Assessment
+          <span className="glass-pill" style={{ marginBottom: '12px', borderColor: band_score === 0 ? 'rgba(255, 70, 148, 0.4)' : 'rgba(255, 184, 0, 0.4)', color: band_score === 0 ? '#FF4694' : '#FFB800' }}>
+            <Mic size={14} /> {band_score === 0 ? '⚠️ No Audio Speech Detected' : 'AI Speaking Performance Assessment'}
           </span>
 
           <div style={{
             width: '94px',
             height: '94px',
             borderRadius: '50%',
-            background: `rgba(${bandColor === '#00F0FF' ? '0, 240, 255' : '255, 184, 0'}, 0.15)`,
-            border: `3px solid ${bandColor}`,
+            background: band_score === 0 ? 'rgba(255, 70, 148, 0.15)' : `rgba(${bandColor === '#00F0FF' ? '0, 240, 255' : '255, 184, 0'}, 0.15)`,
+            border: `3px solid ${band_score === 0 ? '#FF4694' : bandColor}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '16px auto 16px',
-            boxShadow: `0 0 30px ${bandColor}60`
+            boxShadow: `0 0 30px ${band_score === 0 ? '#FF4694' : bandColor}60`
           }}>
             <span style={{ fontFamily: 'var(--font-heading)', fontSize: '2.6rem', fontWeight: 800, color: '#FFF' }}>
-              {band_score}
+              {band_score === 0 ? '0.0' : band_score}
             </span>
           </div>
 
           <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#FFF' }}>
-            Speaking Evaluation Report
+            {band_score === 0 ? 'No Speech Detected' : 'Speaking Evaluation Report'}
           </h2>
 
           <button

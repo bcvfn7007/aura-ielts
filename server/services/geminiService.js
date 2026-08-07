@@ -2,6 +2,19 @@ const https = require('https');
 
 const evaluateWritingEssay = async (taskType, prompt, essayText) => {
   const apiKey = process.env.GEMINI_API_KEY;
+  const wordCount = essayText.trim().split(/\s+/).filter(Boolean).length;
+
+  if (wordCount === 0) {
+    return {
+      band_score: 0.0,
+      task_achievement: { score: 0.0, feedback: 'No text submitted.' },
+      coherence_cohesion: { score: 0.0, feedback: 'No text submitted.' },
+      lexical_resource: { score: 0.0, feedback: 'No text submitted.' },
+      grammar_accuracy: { score: 0.0, feedback: 'No text submitted.' },
+      overall_feedback: '0 words submitted. Please write your essay before submitting for AI assessment.',
+      recommendations: ['Type your essay response in the box provided before submitting.']
+    };
+  }
 
   if (apiKey) {
     try {
@@ -22,14 +35,13 @@ Return ONLY a valid raw JSON object (no markdown, no backticks) with:
 }`;
 
       const res = await callGeminiAPI(apiKey, promptContent);
-      if (res && res.band_score) return res;
+      if (res && typeof res.band_score === 'number') return res;
     } catch (err) {
       console.error('Gemini API call failed for writing:', err.message);
     }
   }
 
   // Smart Heuristic Evaluation Fallback
-  const wordCount = essayText.trim().split(/\s+/).filter(Boolean).length;
   const targetWords = taskType === 'task1' ? 150 : 250;
   let band = 6.0;
   if (wordCount >= targetWords && essayText.length > 800) band = 7.5;
@@ -68,62 +80,96 @@ Return ONLY a valid raw JSON object (no markdown, no backticks) with:
 const evaluateSpeakingResponse = async (partName, promptText, transcriptOrNotes) => {
   const apiKey = process.env.GEMINI_API_KEY;
 
+  // Extract clean spoken text (remove system header markers)
+  let cleanText = (transcriptOrNotes || '')
+    .replace(/\[Auto-transcribed speech.*?\]/g, '')
+    .replace(/No transcript available.*?/g, '')
+    .trim();
+
+  const wordCount = cleanText.split(/\s+/).filter(Boolean).length;
+
+  // ⚠️ CRITICAL FIX: If 0 words were spoken, return Band 0.0 immediately!
+  if (wordCount === 0) {
+    return {
+      band_score: 0.0,
+      fluency_coherence: {
+        score: 0.0,
+        feedback: 'No spoken response detected (0 words). Speak clearly into your microphone during the recording.'
+      },
+      lexical_resource: {
+        score: 0.0,
+        feedback: 'No vocabulary analyzed because no words were recorded.'
+      },
+      grammar_accuracy: {
+        score: 0.0,
+        feedback: 'No grammatical structures detected.'
+      },
+      pronunciation: {
+        score: 0.0,
+        feedback: 'No audio speech input detected.'
+      },
+      overall_feedback: '0 words spoken. Please press the microphone button, speak your answer out loud, and then submit your response.',
+      recommendations: [
+        'Ensure your microphone is connected and permissions are granted',
+        'Press the Mic button to record your voice before submitting',
+        'Speak for 1 to 2 minutes per topic to demonstrate fluency'
+      ]
+    };
+  }
+
   if (apiKey) {
     try {
-      const promptContent = `You are an expert official IELTS Speaking Examiner. Evaluate the candidate's speaking response for IELTS ${partName}:
+      const promptContent = `You are an expert official IELTS Speaking Examiner. Evaluate the candidate's actual spoken response for IELTS ${partName}:
 
 Exam Prompt: "${promptText}"
-Candidate Spoken Response / Transcript: "${transcriptOrNotes || 'No transcript provided'}"
+Candidate Spoken Response / Transcript (${wordCount} words): "${cleanText}"
 
-Analyze the specific text above. Return ONLY a valid raw JSON object (no markdown, no backticks) with:
+Analyze the candidate's exact spoken words above. Return ONLY a valid raw JSON object (no markdown, no backticks) with:
 {
   "band_score": 7.0,
   "fluency_coherence": {
     "score": 7.0,
-    "feedback": "Specific feedback on speech length, fluency, flow and hesitation based on their actual words."
+    "feedback": "Specific feedback analyzing candidate's actual words, length, and speech flow."
   },
   "lexical_resource": {
     "score": 7.5,
-    "feedback": "Specific feedback on vocabulary used in their response."
+    "feedback": "Specific feedback analyzing the actual vocabulary used in candidate's response."
   },
   "grammar_accuracy": {
     "score": 7.0,
-    "feedback": "Specific feedback on sentence structures and grammar."
+    "feedback": "Specific feedback analyzing grammatical structures in candidate's response."
   },
   "pronunciation": {
     "score": 7.5,
-    "feedback": "Specific feedback on articulation and delivery."
+    "feedback": "Specific feedback on delivery and clarity."
   },
-  "overall_feedback": "Custom detailed summary analyzing what the candidate actually spoke.",
+  "overall_feedback": "Detailed examiner summary evaluating what the candidate actually spoke.",
   "recommendations": [
-    "Custom tip 1 based on spoken response",
-    "Custom tip 2 based on spoken response"
+    "Custom recommendation 1 based on spoken text",
+    "Custom recommendation 2 based on spoken text"
   ]
 }`;
 
       const res = await callGeminiAPI(apiKey, promptContent);
-      if (res && res.band_score) return res;
+      if (res && typeof res.band_score === 'number') return res;
     } catch (err) {
       console.error('Gemini API call failed for speaking:', err.message);
     }
   }
 
-  // Dynamic Heuristic Fallback based on actual transcript content
-  const cleanText = (transcriptOrNotes || '').replace(/\[Auto-transcribed speech.*?\]/g, '').trim();
-  const wordCount = cleanText.split(/\s+/).filter(Boolean).length;
-
+  // Dynamic Heuristic Fallback based on actual spoken word count
   let calculatedBand = 5.5;
   let fluencyDesc = 'Short response. Speak for 1-2 minutes in detail to achieve a higher score.';
-  
+
   if (wordCount > 120) {
     calculatedBand = 7.5;
-    fluencyDesc = `Excellent length (${wordCount} words captured). Fluent delivery with sustained speech output.`;
+    fluencyDesc = `Excellent length (${wordCount} spoken words). Sustained speech with fluent delivery.`;
   } else if (wordCount > 60) {
     calculatedBand = 7.0;
-    fluencyDesc = `Good speaking output (${wordCount} words). Clear delivery with good elaboration.`;
+    fluencyDesc = `Good speech length (${wordCount} spoken words). Clear delivery with good elaboration.`;
   } else if (wordCount > 25) {
     calculatedBand = 6.0;
-    fluencyDesc = `Moderate speech output (${wordCount} words). Expand on your ideas with more reasons and examples.`;
+    fluencyDesc = `Moderate speech length (${wordCount} spoken words). Expand on your ideas with more details.`;
   }
 
   return {
@@ -134,21 +180,17 @@ Analyze the specific text above. Return ONLY a valid raw JSON object (no markdow
     },
     lexical_resource: {
       score: Math.min(8.5, calculatedBand + 0.5),
-      feedback: wordCount > 50
-        ? `Used good topic vocabulary in your ${wordCount}-word response.`
-        : 'Try to incorporate more topic-specific vocabulary and idiomatic phrases.'
+      feedback: `Used ${wordCount} spoken words with clear topic-related vocabulary.`
     },
     grammar_accuracy: {
       score: calculatedBand,
-      feedback: 'Sentence structures demonstrated control over past and present tenses.'
+      feedback: 'Good control of basic and complex sentence structures in spoken response.'
     },
     pronunciation: {
       score: Math.min(8.5, calculatedBand + 0.5),
-      feedback: 'Speech synthesis audio captured with clear acoustic clarity.'
+      feedback: 'Speech audio recorded clearly with good acoustic intonation.'
     },
-    overall_feedback: wordCount > 0
-      ? `Captured ${wordCount} spoken words. Your response was analyzed for length, fluency, and structural variety.`
-      : 'No speech transcript was detected during recording. Speak clearly into the microphone or check mic permissions.',
+    overall_feedback: `Evaluated your spoken response of ${wordCount} words. Keep practicing to extend your answers.`,
     recommendations: [
       'Aim for 100+ words per section to demonstrate fluency',
       'Use connective phrases like "For instance", "What I mean is", "On top of that"',
@@ -163,7 +205,6 @@ function callGeminiAPI(apiKey, promptText) {
       contents: [{ parts: [{ text: promptText }] }]
     });
 
-    // Use official Gemini 1.5 Flash endpoint (supported in v1beta)
     const options = {
       hostname: 'generativelanguage.googleapis.com',
       path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,

@@ -152,7 +152,7 @@ export default function SpeakingSimulator({ testId, onExit }) {
     const wordCount = fullTranscript.split(/\s+/).filter(Boolean).length;
     const transcriptForAI = fullTranscript
       ? `[Auto-transcribed speech — ${wordCount} words spoken]\n\n${fullTranscript}`
-      : 'No transcript available — audio recording submitted without speech recognition.';
+      : '';
 
     try {
       const response = await axios.post('/api/results/submit-speaking', {
