@@ -154,32 +154,44 @@ router.post('/submit-speaking', authenticateToken, async (req, res) => {
     const { test_id, part_name, prompt_text, transcript_notes, time_spent_seconds } = req.body;
     const userId = req.user.id;
 
-    const aiEvaluation = await evaluateSpeakingResponse(part_name || 'Part 2', prompt_text || 'Speaking Prompt', transcript_notes);
+    // Use test_id from request, fallback to a safe default if missing
+    const safeTestId = test_id || null;
+
+    const aiEvaluation = await evaluateSpeakingResponse(
+      part_name || 'Part 1, 2 & 3',
+      prompt_text || 'IELTS Speaking Practice',
+      transcript_notes || 'Audio recording submitted'
+    );
     const bandScore = aiEvaluation.band_score || 7.5;
 
-    const result = await run(
-      `INSERT INTO user_results (user_id, test_id, band_score, raw_score, total_questions, answers_json, time_spent_seconds)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        test_id,
-        bandScore,
-        1,
-        1,
-        JSON.stringify({ transcript_notes: transcript_notes || 'Live audio recording submitted', aiEvaluation }),
-        time_spent_seconds || 120
-      ]
-    );
+    // Only save to DB if we have a valid test_id
+    let resultId = null;
+    if (safeTestId) {
+      const result = await run(
+        `INSERT INTO user_results (user_id, test_id, band_score, raw_score, total_questions, answers_json, time_spent_seconds)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          userId,
+          safeTestId,
+          bandScore,
+          1,
+          1,
+          JSON.stringify({ transcript_notes: transcript_notes || 'Audio recording submitted', aiEvaluation }),
+          time_spent_seconds || 120
+        ]
+      );
+      resultId = result.lastID;
+    }
 
     res.json({
       message: 'Speaking performance evaluated',
-      result_id: result.lastID,
+      result_id: resultId,
       band_score: bandScore,
       aiEvaluation
     });
   } catch (err) {
-    console.error('Error in speaking evaluation:', err);
-    res.status(500).json({ error: 'Speaking evaluation failed.' });
+    console.error('Error in speaking evaluation:', err.message, err.stack);
+    res.status(500).json({ error: 'Speaking evaluation failed.', detail: err.message });
   }
 });
 

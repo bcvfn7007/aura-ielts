@@ -94,7 +94,7 @@ const initDB = async () => {
       CREATE TABLE IF NOT EXISTS user_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        test_id INTEGER NOT NULL,
+        test_id INTEGER,
         band_score REAL NOT NULL,
         raw_score INTEGER NOT NULL,
         total_questions INTEGER NOT NULL,
