@@ -34,10 +34,10 @@ export default function Navbar({ onOpenAuth, activeTab, setActiveTab }) {
           </div>
           <div>
             <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 800, color: '#FFF' }}>
-              Aura<span style={{ color: 'var(--accent-purple)' }}>IELTS</span>
+              Band<span style={{ color: 'var(--accent-purple)' }}>Up</span>
             </span>
             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              AI Prep Suite
+              AI IELTS Platform
             </div>
           </div>
         </div>

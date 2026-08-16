@@ -41,7 +41,7 @@ export default function SpeakingFeedbackModal({ result, onRetry, onCloseCatalog 
         {/* Header Score Badge */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <span className="glass-pill" style={{ marginBottom: '12px', borderColor: band_score === 0 ? 'rgba(255, 70, 148, 0.4)' : 'rgba(255, 184, 0, 0.4)', color: band_score === 0 ? '#FF4694' : '#FFB800' }}>
-            <Mic size={14} /> {band_score === 0 ? '⚠️ No Audio Speech Detected' : 'AI Speaking Performance Assessment'}
+            <Mic size={14} /> {band_score === 0 ? '⚠️ No Audio Speech Detected' : `AI Speaking Assessment (${result.engineUsed || 'Claude 3.5 Sonnet'})`}
           </span>
 
           <div style={{

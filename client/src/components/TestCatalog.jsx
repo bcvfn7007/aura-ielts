@@ -6,6 +6,7 @@ import { Headphones, BookOpen, FileEdit, Mic, Clock, HelpCircle, Play, ChevronLe
 export default function TestCatalog({ onSelectTest }) {
   const [tests, setTests] = useState([]);
   const [moduleFilter, setModuleFilter] = useState('all');
+  const [examTypeFilter, setExamTypeFilter] = useState('all'); // 'all' | 'academic' | 'general'
   const [difficultyFilter, setDifficultyFilter] = useState('all');
   const [topicFilter, setTopicFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -14,7 +15,7 @@ export default function TestCatalog({ onSelectTest }) {
 
   useEffect(() => {
     fetchTests();
-  }, [moduleFilter, difficultyFilter, topicFilter]);
+  }, [moduleFilter, examTypeFilter, difficultyFilter, topicFilter]);
 
   const fetchTests = async () => {
     setLoading(true);
@@ -26,7 +27,11 @@ export default function TestCatalog({ onSelectTest }) {
           topic: topicFilter
         }
       });
-      setTests(response.data.tests || []);
+      let resultTests = response.data.tests || [];
+      if (examTypeFilter !== 'all') {
+        resultTests = resultTests.filter(t => t.title.toLowerCase().includes(examTypeFilter) || examTypeFilter === 'academic');
+      }
+      setTests(resultTests);
     } catch (err) {
       console.error('Failed to load test catalog:', err);
     } finally {
@@ -195,7 +200,18 @@ export default function TestCatalog({ onSelectTest }) {
           })}
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <select
+            value={examTypeFilter}
+            onChange={(e) => setExamTypeFilter(e.target.value)}
+            className="glass-input"
+            style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+          >
+            <option value="all">All Exam Formats (Academic & GT)</option>
+            <option value="academic">Academic Format</option>
+            <option value="general">General Training Format</option>
+          </select>
+
           <select
             value={difficultyFilter}
             onChange={(e) => setDifficultyFilter(e.target.value)}

@@ -41,7 +41,7 @@ export default function WritingFeedbackModal({ result, onRetry, onCloseCatalog }
         {/* Header Band Score Badge */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <span className="glass-pill" style={{ marginBottom: '12px' }}>
-            <Sparkles size={14} /> Gemini AI IELTS Assessment
+            <Sparkles size={14} /> AI Assessment ({result.engineUsed || 'Claude 3.5 Sonnet'})
           </span>
 
           <div style={{
@@ -109,6 +109,30 @@ export default function WritingFeedbackModal({ result, onRetry, onCloseCatalog }
             );
           })}
         </div>
+
+        {/* Error Corrections Breakdown (Quotes from User Text) */}
+        {aiEvaluation.error_corrections && aiEvaluation.error_corrections.length > 0 && (
+          <div style={{ background: 'rgba(255, 70, 148, 0.08)', border: '1px solid rgba(255, 70, 148, 0.25)', padding: '24px', borderRadius: '16px', marginBottom: '32px' }}>
+            <h4 style={{ color: '#FFF', fontSize: '1.1rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ✍️ Specific Sentence Corrections & Quote Improvements
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {aiEvaluation.error_corrections.map((corr, i) => (
+                <div key={i} style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                  <div style={{ fontSize: '0.86rem', color: '#FF4694', textDecoration: 'line-through' }}>
+                    "{corr.original_quote}"
+                  </div>
+                  <div style={{ fontSize: '0.88rem', color: '#00F0FF', fontWeight: 600, marginTop: '4px' }}>
+                    ✓ Recommended: "{corr.corrected}"
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    {corr.explanation}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Overall Summary & Recommendations */}
         <div style={{ background: 'rgba(108, 99, 255, 0.08)', border: '1px solid rgba(108, 99, 255, 0.25)', padding: '24px', borderRadius: '16px', marginBottom: '32px' }}>

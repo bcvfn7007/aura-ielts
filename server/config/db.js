@@ -1,115 +1,251 @@
 const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = path.resolve(__dirname, '../db/database.sqlite');
-const dbDir = path.dirname(dbPath);
+const pgConnectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || null;
 
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+let isPostgres = false;
+let pgPool = null;
+let sqliteDb = null;
+
+if (pgConnectionString) {
+  try {
+    pgPool = new Pool({
+      connectionString: pgConnectionString,
+      ssl: process.env.NODE_ENV === 'production' || pgConnectionString.includes('supabase') ? { rejectUnauthorized: false } : false
+    });
+    isPostgres = true;
+    console.log('✅ Connected to PostgreSQL (Supabase/Neon) successfully.');
+  } catch (err) {
+    console.error('⚠️ Failed to initialize PostgreSQL pool, falling back to SQLite:', err.message);
+  }
 }
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening SQLite database:', err.message);
-  } else {
-    console.log('Connected to local SQLite database successfully.');
+if (!isPostgres) {
+  const dbPath = path.resolve(__dirname, '../db/database.sqlite');
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
   }
-});
+
+  sqliteDb = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+      console.error('Error opening SQLite database:', err.message);
+    } else {
+      console.log('Connected to local SQLite database successfully.');
+    }
+  });
+}
+
+// Convert SQLite '?' placeholders to PostgreSQL '$1, $2...'
+function convertSqlPlaceholders(sql) {
+  if (!isPostgres) return sql;
+  let index = 1;
+  return sql.replace(/\?/g, () => `$${index++}`);
+}
 
 const query = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
+  if (isPostgres) {
+    const formattedSql = convertSqlPlaceholders(sql);
+    return pgPool.query(formattedSql, params).then(res => res.rows);
+  } else {
+    return new Promise((resolve, reject) => {
+      sqliteDb.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
     });
-  });
+  }
 };
 
 const get = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
+  if (isPostgres) {
+    const formattedSql = convertSqlPlaceholders(sql);
+    return pgPool.query(formattedSql, params).then(res => res.rows[0] || null);
+  } else {
+    return new Promise((resolve, reject) => {
+      sqliteDb.get(sql, params, (err, row) => {
+        if (err) reject(err);
+        else resolve(row || null);
+      });
     });
-  });
+  }
 };
 
-const run = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve({ lastID: this.lastID, changes: this.changes });
+const run = async (sql, params = []) => {
+  if (isPostgres) {
+    let formattedSql = convertSqlPlaceholders(sql);
+    const isInsert = /^\s*INSERT\s+INTO/i.test(formattedSql);
+
+    if (isInsert && !/RETURNING/i.test(formattedSql)) {
+      formattedSql += ' RETURNING id';
+    }
+
+    const res = await pgPool.query(formattedSql, params);
+    const lastID = res.rows && res.rows[0] ? res.rows[0].id : null;
+    return { lastID, changes: res.rowCount };
+  } else {
+    return new Promise((resolve, reject) => {
+      sqliteDb.run(sql, params, function (err) {
+        if (err) reject(err);
+        else resolve({ lastID: this.lastID, changes: this.changes });
+      });
     });
-  });
+  }
 };
 
 const initDB = async () => {
   try {
-    await run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        full_name TEXT NOT NULL,
-        target_band REAL DEFAULT 7.5,
-        avatar_url TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    if (isPostgres) {
+      await run(`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          full_name TEXT NOT NULL,
+          target_band REAL DEFAULT 7.5,
+          avatar_url TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    await run(`
-      CREATE TABLE IF NOT EXISTS tests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        module_type TEXT NOT NULL,
-        difficulty TEXT NOT NULL,
-        topic TEXT NOT NULL,
-        duration_minutes INTEGER DEFAULT 30,
-        total_questions INTEGER DEFAULT 10,
-        audio_url TEXT,
-        passage_text TEXT,
-        transcript_text TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS tests (
+          id SERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          module_type TEXT NOT NULL,
+          difficulty TEXT NOT NULL,
+          topic TEXT NOT NULL,
+          duration_minutes INTEGER DEFAULT 30,
+          total_questions INTEGER DEFAULT 10,
+          audio_url TEXT,
+          passage_text TEXT,
+          transcript_text TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    await run(`
-      CREATE TABLE IF NOT EXISTS questions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        test_id INTEGER NOT NULL,
-        question_number INTEGER NOT NULL,
-        question_type TEXT NOT NULL,
-        text TEXT NOT NULL,
-        options_json TEXT,
-        correct_answer TEXT NOT NULL,
-        explanation TEXT,
-        answer_location TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE
-      )
-    `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS questions (
+          id SERIAL PRIMARY KEY,
+          test_id INTEGER NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+          question_number INTEGER NOT NULL,
+          question_type TEXT NOT NULL,
+          text TEXT NOT NULL,
+          options_json TEXT,
+          correct_answer TEXT NOT NULL,
+          explanation TEXT,
+          answer_location TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    await run(`
-      CREATE TABLE IF NOT EXISTS user_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        test_id INTEGER,
-        band_score REAL NOT NULL,
-        raw_score INTEGER NOT NULL,
-        total_questions INTEGER NOT NULL,
-        answers_json TEXT NOT NULL,
-        time_spent_seconds INTEGER NOT NULL,
-        completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE
-      )
-    `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS user_results (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          test_id INTEGER REFERENCES tests(id) ON DELETE CASCADE,
+          band_score REAL NOT NULL,
+          raw_score INTEGER NOT NULL,
+          total_questions INTEGER NOT NULL,
+          answers_json TEXT NOT NULL,
+          time_spent_seconds INTEGER NOT NULL,
+          completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    // Reset and seed 100% original, copyright-safe IELTS practice tests
+      await run(`
+        CREATE TABLE IF NOT EXISTS user_recordings (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          test_id INTEGER REFERENCES tests(id) ON DELETE CASCADE,
+          part_name TEXT,
+          audio_url TEXT NOT NULL,
+          transcript_text TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } else {
+      await run(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          full_name TEXT NOT NULL,
+          target_band REAL DEFAULT 7.5,
+          avatar_url TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await run(`
+        CREATE TABLE IF NOT EXISTS tests (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          module_type TEXT NOT NULL,
+          difficulty TEXT NOT NULL,
+          topic TEXT NOT NULL,
+          duration_minutes INTEGER DEFAULT 30,
+          total_questions INTEGER DEFAULT 10,
+          audio_url TEXT,
+          passage_text TEXT,
+          transcript_text TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await run(`
+        CREATE TABLE IF NOT EXISTS questions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          test_id INTEGER NOT NULL,
+          question_number INTEGER NOT NULL,
+          question_type TEXT NOT NULL,
+          text TEXT NOT NULL,
+          options_json TEXT,
+          correct_answer TEXT NOT NULL,
+          explanation TEXT,
+          answer_location TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE
+        )
+      `);
+
+      await run(`
+        CREATE TABLE IF NOT EXISTS user_results (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          test_id INTEGER,
+          band_score REAL NOT NULL,
+          raw_score INTEGER NOT NULL,
+          total_questions INTEGER NOT NULL,
+          answers_json TEXT NOT NULL,
+          time_spent_seconds INTEGER NOT NULL,
+          completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE
+        )
+      `);
+
+      await run(`
+        CREATE TABLE IF NOT EXISTS user_recordings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          test_id INTEGER,
+          part_name TEXT,
+          audio_url TEXT NOT NULL,
+          transcript_text TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE
+        )
+      `);
+    }
+
     const existingCount = await get("SELECT COUNT(*) as count FROM tests");
-    if (existingCount.count === 0) {
-      console.log('Seeding 100% original, copyright-safe IELTS practice test suites...');
+    const countVal = existingCount ? parseInt(existingCount.count || existingCount.COUNT || 0, 10) : 0;
+    if (countVal === 0) {
+      console.log('Seeding BandUp original IELTS practice test suites...');
       await seedOriginalIELTSTests();
     }
   } catch (err) {
@@ -118,7 +254,6 @@ const initDB = async () => {
 };
 
 const seedOriginalIELTSTests = async () => {
-  // TEST 1: Listening Part 1 - Holiday Apartment Booking Form (Form Completion)
   const scriptListening1 = `RECEPTIONIST: Good morning, Sydney Harbour Executive Apartments. How may I assist you today?
 CALLER: Hello! I'd like to book a holiday apartment for an upcoming business trip and family stay.
 RECEPTIONIST: Certainly! Could I take your full name, please?
@@ -167,7 +302,6 @@ CALLER: That sounds great. Let us proceed with that.`;
     );
   }
 
-  // TEST 2: Reading Passage 1 - The Evolution of Sustainable Eco-Architecture (True/False/Not Given)
   const passageReading1 = `Paragraph A: Sustainable eco-architecture has evolved from a niche architectural trend into a core mandate for modern urban development. In the early 20th century, building designs focused almost exclusively on aesthetic grandeur and structural scale, often neglecting thermal efficiency and carbon footprints. However, contemporary architects now integrate passive solar design, natural cross-ventilation, and recycled building materials to minimize environmental impact.
 
 Paragraph B: One of the most effective passive strategies is the use of green roofs—rooftop gardens layered with drought-resistant vegetation. Research demonstrates that green roofs reduce urban heat island effects by lowering surface temperatures up to 15 degrees Celsius compared to conventional asphalt roofs. Additionally, they absorb heavy rainwater, preventing stormwater runoff from overloading municipal drainage systems.
@@ -246,7 +380,6 @@ Paragraph C: Despite these proven advantages, widespread adoption faces economic
     );
   }
 
-  // TEST 3: Reading Passage 2 - Matching Headings (Paragraph Headings)
   const passageReading2 = `List of Headings:
 i. Economic barriers to technological adoption
 ii. Psychological drivers of team innovation
@@ -313,7 +446,6 @@ Paragraph C: Furthermore, financial constraints frequently stifle experimental p
     );
   }
 
-  // TEST 4: Writing Task 2 - Higher Education Funding
   const promptWriting2 = `Some people believe that university education should be completely free for all students, funded entirely by government taxation. Others argue that students should pay tuition fees as higher education primarily benefits the individual's career prospects.
 
 Discuss both views and give your own opinion. Give reasons for your answer and include relevant examples. Write at least 250 words.`;
@@ -334,7 +466,6 @@ Discuss both views and give your own opinion. Give reasons for your answer and i
     ]
   );
 
-  // TEST 5: Speaking Practice Suite
   const promptSpeaking = `PART 1: INTRODUCTORY QUESTIONS
 - What type of accommodation do you live in? What is your favorite room?
 - How often do you use public transportation in your city?
@@ -367,11 +498,11 @@ PART 3: TWO-WAY DISCUSSION
     ]
   );
 
-  console.log('Database successfully re-seeded with 100% original, copyright-safe IELTS practice materials.');
+  console.log('Database successfully initialized with BandUp practice material.');
 };
 
 module.exports = {
-  db,
+  db: sqliteDb,
   query,
   get,
   run,

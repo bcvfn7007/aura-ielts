@@ -160,15 +160,17 @@ export default function UserCabinet() {
                     </p>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                     <div style={{ textAlign: 'center', padding: '16px 24px', background: 'rgba(15, 14, 30, 0.6)', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Initial Band</div>
                       <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 800, color: '#FFB800' }}>{initialScore}</div>
                     </div>
                     <div style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>➔</div>
                     <div style={{ textAlign: 'center', padding: '16px 24px', background: 'rgba(15, 14, 30, 0.6)', borderRadius: '16px', border: '1px solid var(--border-glow)' }}>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Current Peak</div>
-                      <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 800, color: '#00F0FF' }}>{latestScore}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Overall Estimated Band</div>
+                      <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 800, color: '#00F0FF' }}>
+                        {latestScore}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -1,7 +1,7 @@
 {
-  "name": "ielts-app",
+  "name": "bandup-platform",
   "version": "1.0.0",
-  "description": "IELTS Prep Platform - Monorepo",
+  "description": "BandUp IELTS Prep Platform - Monorepo",
   "scripts": {
     "build": "cd client && npm install && npm run build",
     "start": "cd server && node server.js",

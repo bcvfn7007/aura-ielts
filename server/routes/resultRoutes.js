@@ -2,6 +2,8 @@ const express = require('express');
 const { query, get, run } = require('../config/db');
 const { authenticateToken } = require('../middleware/authMiddleware');
 const { evaluateWritingEssay, evaluateSpeakingResponse } = require('../services/geminiService');
+const { evaluateWritingEssayWithClaude, evaluateSpeakingResponseWithClaude } = require('../services/claudeService');
+const { uploadSpeakingAudio } = require('../services/storageService');
 
 const router = express.Router();
 
@@ -107,7 +109,7 @@ router.post('/submit', authenticateToken, async (req, res) => {
   }
 });
 
-// 2. Submit Writing Task (Gemini AI Analysis)
+// 2. Submit Writing Task (Claude API primary, Gemini fallback)
 router.post('/submit-writing', authenticateToken, async (req, res) => {
   try {
     const { test_id, task_type, prompt_text, essay_text, time_spent_seconds } = req.body;
@@ -117,8 +119,26 @@ router.post('/submit-writing', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'test_id and essay_text are required.' });
     }
 
-    const aiEvaluation = await evaluateWritingEssay(task_type || 'task2', prompt_text || 'IELTS Writing Prompt', essay_text);
-    const bandScore = aiEvaluation.band_score || 7.0;
+    // Try Claude API first
+    let aiEvaluation = await evaluateWritingEssayWithClaude(
+      task_type || 'task2',
+      prompt_text || 'IELTS Writing Prompt',
+      essay_text
+    );
+
+    let engineUsed = 'Claude 3.5 Sonnet';
+
+    // Fallback to Gemini API if Claude is not configured or fails
+    if (!aiEvaluation) {
+      aiEvaluation = await evaluateWritingEssay(
+        task_type || 'task2',
+        prompt_text || 'IELTS Writing Prompt',
+        essay_text
+      );
+      engineUsed = 'Gemini 1.5 Flash';
+    }
+
+    const bandScore = aiEvaluation.band_score !== undefined ? aiEvaluation.band_score : 7.0;
     const wordCount = essay_text.trim().split(/\s+/).filter(Boolean).length;
 
     const result = await run(
@@ -130,17 +150,18 @@ router.post('/submit-writing', authenticateToken, async (req, res) => {
         bandScore,
         wordCount,
         task_type === 'task1' ? 150 : 250,
-        JSON.stringify({ essay_text, aiEvaluation }),
+        JSON.stringify({ essay_text, aiEvaluation, engineUsed }),
         time_spent_seconds || 0
       ]
     );
 
     res.json({
-      message: 'Writing essay evaluated by Gemini AI',
+      message: `Writing essay evaluated by AI (${engineUsed})`,
       result_id: result.lastID,
       band_score: bandScore,
       word_count: wordCount,
-      aiEvaluation
+      aiEvaluation,
+      engineUsed
     });
   } catch (err) {
     console.error('Error in writing evaluation:', err);
@@ -148,23 +169,49 @@ router.post('/submit-writing', authenticateToken, async (req, res) => {
   }
 });
 
-// 3. Submit Speaking Response (Web Audio AI Analysis)
+// 3. Submit Speaking Response (Claude API primary, Gemini fallback + Storage)
 router.post('/submit-speaking', authenticateToken, async (req, res) => {
   try {
-    const { test_id, part_name, prompt_text, transcript_notes, time_spent_seconds } = req.body;
+    const { test_id, part_name, prompt_text, transcript_notes, audio_payload, time_spent_seconds } = req.body;
     const userId = req.user.id;
-
-    // Use test_id from request, fallback to a safe default if missing
     const safeTestId = test_id || null;
 
-    const aiEvaluation = await evaluateSpeakingResponse(
+    // Optional audio upload to Supabase storage
+    let audioUrl = null;
+    if (audio_payload) {
+      audioUrl = await uploadSpeakingAudio(userId, audio_payload);
+    }
+
+    // Try Claude API first
+    let aiEvaluation = await evaluateSpeakingResponseWithClaude(
       part_name || 'Part 1, 2 & 3',
       prompt_text || 'IELTS Speaking Practice',
       transcript_notes || 'Audio recording submitted'
     );
-    const bandScore = aiEvaluation.band_score || 7.5;
 
-    // Only save to DB if we have a valid test_id
+    let engineUsed = 'Claude 3.5 Sonnet';
+
+    // Fallback to Gemini API if Claude is not configured or fails
+    if (!aiEvaluation) {
+      aiEvaluation = await evaluateSpeakingResponse(
+        part_name || 'Part 1, 2 & 3',
+        prompt_text || 'IELTS Speaking Practice',
+        transcript_notes || 'Audio recording submitted'
+      );
+      engineUsed = 'Gemini 1.5 Flash';
+    }
+
+    const bandScore = aiEvaluation.band_score !== undefined ? aiEvaluation.band_score : 7.5;
+
+    // Save audio recording link to user_recordings table if audio URL exists
+    if (audioUrl && safeTestId) {
+      await run(
+        `INSERT INTO user_recordings (user_id, test_id, part_name, audio_url, transcript_text)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, safeTestId, part_name || 'Part 1, 2 & 3', audioUrl, transcript_notes || null]
+      );
+    }
+
     let resultId = null;
     if (safeTestId) {
       const result = await run(
@@ -176,7 +223,7 @@ router.post('/submit-speaking', authenticateToken, async (req, res) => {
           bandScore,
           1,
           1,
-          JSON.stringify({ transcript_notes: transcript_notes || 'Audio recording submitted', aiEvaluation }),
+          JSON.stringify({ transcript_notes: transcript_notes || 'Audio recording submitted', audioUrl, aiEvaluation, engineUsed }),
           time_spent_seconds || 120
         ]
       );
@@ -184,10 +231,12 @@ router.post('/submit-speaking', authenticateToken, async (req, res) => {
     }
 
     res.json({
-      message: 'Speaking performance evaluated',
+      message: `Speaking performance evaluated by AI (${engineUsed})`,
       result_id: resultId,
       band_score: bandScore,
-      aiEvaluation
+      audio_url: audioUrl,
+      aiEvaluation,
+      engineUsed
     });
   } catch (err) {
     console.error('Error in speaking evaluation:', err.message, err.stack);

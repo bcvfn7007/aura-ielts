@@ -20,11 +20,11 @@ export default function Footer({ onNavigate }) {
               <Award size={20} color="#FFF" />
             </div>
             <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', fontWeight: 800, color: '#FFF' }}>
-              Aura<span style={{ color: 'var(--accent-purple)' }}>IELTS</span>
+              Band<span style={{ color: 'var(--accent-purple)' }}>Up</span>
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6 }}>
-            Next-generation IELTS preparation suite offering original practice materials in standard exam formats across Listening, Reading, Writing (Gemini AI), and Speaking.
+            Next-generation IELTS preparation platform offering original practice materials in standard exam formats across Listening, Reading, Writing, and Speaking.
           </p>
         </div>
 
@@ -84,7 +84,7 @@ export default function Footer({ onNavigate }) {
         fontSize: '0.85rem',
         color: 'var(--text-muted)'
       }}>
-        <div>© 2026 AuraIELTS Prep Engine. Designed for score optimization.</div>
+        <div>© 2026 BandUp Engine. Designed for score optimization.</div>
         <div style={{ display: 'flex', gap: '16px' }}>
           <Github size={18} style={{ cursor: 'pointer' }} />
           <Twitter size={18} style={{ cursor: 'pointer' }} />
